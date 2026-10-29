@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+}
+
+model User {
+  id           String                @id @default(cuid())
+  name         String
+  email        String                @unique
+  passwordHash String
+  avatarUrl    String?
+  role         UserRole              @default(USER)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  meetings     Meeting[]             @relation("MeetingHost")
+  participants MeetingParticipant[]
+  messages ChatMessage[]
+  whiteboardStrokes WhiteboardStroke[]
+  sharedFiles SharedFile[]
+
+  @@index([name])
+}
+
+model Meeting {
+  id          String                @id @default(cuid())
+  title       String
+  roomCode    String                @unique
+  status      MeetingStatus         @default(SCHEDULED)
+  isPrivate   Boolean               @default(true)
+  scheduledAt DateTime?
+  durationHours Int                 @default(2)
+  expiresAt   DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  hostId      String
+  host        User                  @relation("MeetingHost", fields: [hostId], references: [id], onDelete: Restrict)
+  participants MeetingParticipant[]
+  messages ChatMessage[]
+  whiteboardStrokes WhiteboardStroke[]
+  sharedFiles SharedFile[]
+
+  @@index([hostId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  userId    String
+  meetingId String
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, meetingId])
+  @@index([meetingId])
+}
+
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  text      String   @db.VarChar(2000)
+  createdAt DateTime @default(now())
+
+  senderId  String
+  meetingId String
+
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
+  @@index([senderId])
+}
+
+
+model WhiteboardStroke {
+  id        String   @id @default(cuid())
+  strokeId  String
+  color     String
+  width     Float
+  points    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meetingId String
+  senderId  String
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, strokeId])
+  @@index([meetingId, createdAt])
+  @@index([senderId])
+}
+
+model SharedFile {
+  id         String   @id
+  name       String
+  size       Int
+  url        String
+  createdAt  DateTime @default(now())
+
+  meetingId  String
+  senderId   String
+
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
+  @@index([senderId])
+}
